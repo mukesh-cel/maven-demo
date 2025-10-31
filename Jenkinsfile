@@ -16,7 +16,9 @@ pipeline {
     stage('Build') {
       steps {
         echo 'Building the login feature...'
-        sh './gradlew build' // or your build tool
+        sh 'gradle build'
+
+ // or your build tool
       }
     }
 
