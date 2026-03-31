@@ -1,0 +1,83 @@
+pipeline {
+  agent any
+
+  environment {
+    BRANCH_NAME = "${env.BRANCH_NAME}"
+  }
+
+  options {
+    skipDefaultCheckout()
+    timestamps()
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        echo "Checking out ${env.BRANCH_NAME}..."
+        checkout scm
+      }
+    }
+
+    stage('Build') {
+      steps {
+        echo 'Building hotfix...'
+        sh './gradlew clean build -x test' // Skip tests for faster feedback
+      }
+    }
+
+    stage('Smoke Tests') {
+      steps {
+        echo 'Running smoke tests...'
+        sh './gradlew test --tests "*SmokeTest*"'
+      }
+    }
+
+    stage('Regression Tests') {
+      steps {
+        echo 'Running regression tests...'
+        sh './gradlew test --tests "*RegressionTest*"'
+      }
+    }
+
+    stage('Deploy to Staging') {
+      when {
+        branch pattern: "hotfix/.*", comparator: "REGEXP"
+      }
+      steps {
+        echo 'Deploying hotfix to staging...'
+        sh './scripts/deploy.sh staging'
+      }
+    }
+
+    stage('Manual Approval for Production') {
+      when {
+        branch pattern: "hotfix/.*", comparator: "REGEXP"
+      }
+      steps {
+        input message: 'Approve deployment to production?'
+      }
+    }
+
+    stage('Deploy to Production') {
+      when {
+        branch pattern: "hotfix/.*", comparator: "REGEXP"
+      }
+      steps {
+        echo 'Deploying hotfix to production...'
+        sh './scripts/deploy.sh production'
+      }
+    }
+  }
+
+  post {
+    success {
+      echo 'Hotfix pipeline completed successfully.'
+    }
+    failure {
+      echo 'Hotfix pipeline failed. Investigate immediately.'
+    }
+    always {
+      cleanWs()
+    }
+  }
+}
